@@ -72,7 +72,7 @@ namespace EveExporter.GrannyNative
 
 
             ProcessRelocations();
-            System.IO.File.WriteAllBytes(@"c:\Users\ryanh\debug-relocated.bin", _sectionData);
+            System.IO.File.WriteAllBytes(@"c:\debug\debug-relocated.bin", _sectionData);
 
             //            Only little endian is supported at the moment
             //            ProcessMarshallings();
@@ -412,6 +412,7 @@ namespace EveExporter.GrannyNative
                 Debug.WriteLine("Section " + i + " Relocations Count: " + sectionHeader.RelocationsCount);
                 Debug.WriteLine("Section " + i + " Marshallings Offset: " + sectionHeader.MarshallingsOffset);
                 Debug.WriteLine("Section " + i + " Marshallings Count: " + sectionHeader.MarshallingsCount);
+                Debug.WriteLine("\n");
 
             }
 
@@ -458,7 +459,7 @@ namespace EveExporter.GrannyNative
                 {
                     sectionData = compressedSectionData;
                 }
-                else if (sectionHeader.Compression == 4)
+                else if ((sectionHeader.Compression >= 1) && (sectionHeader.Compression <= 4))
                 {
                     if (sectionHeader.DataSize == sectionHeader.DecompressedSize)
                     {
@@ -489,6 +490,7 @@ namespace EveExporter.GrannyNative
         private void ProcessRelocations()
         {
             int sectionIndex = 0;
+            byte[] decompressedRelocationData;
 
             // for each section header read the section
             foreach (SectionHeader sectionHeader in _sectionHeaders)
@@ -500,32 +502,25 @@ namespace EveExporter.GrannyNative
                 }
 
                 _grannyFile.Position = sectionHeader.RelocationsOffset;
+                decompressedRelocationData = new byte[sectionHeader.RelocationsCount * 12];
 
-                uint compressedSize = ReadUInt32(_grannyFile);
-                byte[] compressedRelocationData = ReadByteArray(_grannyFile, (int)compressedSize);
-                byte[] decompressedRelocationData = new byte[sectionHeader.RelocationsCount * 12];
 
-                if (sectionHeader.Compression == 0)
-                {
-                    decompressedRelocationData = compressedRelocationData;
+                bool decompressionRequired = true;
+                if ((sectionHeader.MarshallingsOffset - sectionHeader.RelocationsOffset) == (sectionHeader.RelocationsCount*12)) {
+                    decompressionRequired = false;
                 }
-                else if (sectionHeader.Compression == 4)
+
+                if (!decompressionRequired)
                 {
-                    if (compressedSize == sectionHeader.RelocationsCount * 12)
-                    {
-                        decompressedRelocationData = compressedRelocationData;
-                    }
-                    else
-                    {
-                        Decompression decompressor = new Decompression();
-                        decompressor.GR2decompress(decompressedRelocationData, compressedRelocationData, sectionHeader.RelocationsCount * 12, compressedSize, sectionHeader);
-                    }
+                    decompressedRelocationData = ReadByteArray(_grannyFile, (int)sectionHeader.RelocationsCount * 12);
                 }
                 else
                 {
-                    throw new Exception("Unknown compression type " + sectionHeader.Compression);
+                    uint compressedSize = ReadUInt32(_grannyFile);
+                    byte[] compressedRelocationData = ReadByteArray(_grannyFile, (int)compressedSize);
+                    Decompression decompressor = new Decompression();
+                    decompressor.GR2decompress(decompressedRelocationData, compressedRelocationData, sectionHeader.RelocationsCount * 12, compressedSize, sectionHeader);
                 }
-
 
                 // Apply all of the relocations
                 for (int i = 0; i < sectionHeader.RelocationsCount; i++)

@@ -15,6 +15,7 @@ using ImageMagick;
 using LibVLCSharp.Shared;
 using EveExporter.GrannyNative;
 using BCnEncoder.Shared.ImageFiles;
+using System.Diagnostics.Eventing.Reader;
 
 namespace EveExporter
 {
@@ -42,12 +43,13 @@ namespace EveExporter
             convertToPNG = Convert.ToBoolean(registryKey.GetValue("convertToPNG", false));            
             skipLowdetail = Convert.ToBoolean(registryKey.GetValue("skipLowdetail", false));
 
-
             UpdateRegistry();
 
-            //            Granny granny = new Granny(
-            //                new MemoryStream(File.ReadAllBytes(@"C:\Users\ryanh\OneDrive - Davinci Technology Solutions\Desktop\EVE Models\ship\soe\cruiser\soec1\soec1_t1.gr2"))
-            //                              );
+            // for testing and development of the gr2 loader
+//            Granny granny = new Granny(
+  //              new MemoryStream(File.ReadAllBytes(@"C:\debug\soef1_t1.gr2"))
+    //            );
+
 
         }
 
@@ -183,9 +185,12 @@ namespace EveExporter
                         richTextBox1.Text += "Format: " + image.PixelFormat + "\n";
 
                     }
-                    catch
+                    catch (Exception e)
                     {
                         richTextBox1.Text += "Failed to load DDS file with ImageMagick\n";
+  //                      richTextBox1.Text += e.ToString();
+
+
 
                         try
                         {
@@ -195,9 +200,11 @@ namespace EveExporter
                             richTextBox1.Text += "Format: " + image.PixelFormat + "\n";
 
                         }
-                        catch
+                        catch (Exception ex)
                         {
                             richTextBox1.Text += "Failed to load DDS file with ImageSharp BCnDecoder\n";
+//                            richTextBox1.Text += ex.ToString();
+
                             ddsFile.DumpHeaders();
                         }
                     }
@@ -235,18 +242,15 @@ namespace EveExporter
 
         private System.Drawing.Image loadDDSWithSharp(string filePath)
         {
-
             using (var fileStream = new System.IO.FileStream(filePath, System.IO.FileMode.Open))
             {
                 BcDecoder decoder = new BcDecoder();
-                using Image<Rgba32> image = decoder.DecodeToImageRgba32(fileStream);
+                using Image image = decoder.DecodeToImageRgba32(fileStream);
                 MemoryStream memstream = new MemoryStream();
                 image.SaveAsPng(memstream);
                 memstream.Position = 0;
-
                 return Bitmap.FromStream(memstream);
             }
-
         }
 
 
@@ -273,7 +277,7 @@ namespace EveExporter
                     // ...
 
 
-                    progressForm.progressBar1.Minimum = 1;
+                    progressForm.progressBar1.Minimum = 0;
                     progressForm.progressBar1.Maximum = CountNodes(treeView1.SelectedNode);
                     progressForm.progressBar1.Value = 1;
                     progressForm.progressBar1.Step = 1;
@@ -287,21 +291,23 @@ namespace EveExporter
             }
         }
 
+        // this should return the number of leaf nodes
         private int CountNodes(TreeNode node)
         {
             int count = 0;
-            foreach (TreeNode childNode in node.Nodes)
+            if (node.Nodes.Count > 0)
             {
-
-                if (childNode.Nodes.Count > 0)
+                // I am not a leaf node and I need to recurse
+                foreach (TreeNode childNode in node.Nodes)
                 {
-                  count += CountNodes(childNode);
-                }
-                else
-                {
-                    count++;
+                    count += CountNodes(childNode);
                 }
             }
+            else
+            {
+                return 1;
+            }
+
             return count;
         }
 
